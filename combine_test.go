@@ -7,6 +7,8 @@ package gzipbuilder
 import (
 	"hash/crc32"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCombineCRC32(t *testing.T) {
@@ -116,6 +118,14 @@ func TestCombineCRC32Long(t *testing.T) {
 				tc.len2, got, tc.expect)
 		}
 	}
+}
+
+func TestCombineCRC32TooLong(t *testing.T) {
+	mat := precomputeCRC32(crc32.IEEE)
+
+	assert.PanicsWithValue(t, "gzipbuilder: length out of range", func() {
+		combineCRC32(mat, 0xdeadbeef, 0x1337f001, 1<<50)
+	})
 }
 
 func BenchmarkPrecomputeCRC32(b *testing.B) {

@@ -111,7 +111,7 @@ func precomputeCRC32(poly uint32) *crc32Matrix {
 //	crc32.Checksum(AB, tab) == combineCRC32(precomputeCRC32(poly), crc32.Checksum(A, tab), crc32.Checksum(B, tab), len(B))
 func combineCRC32(mat *crc32Matrix, crc1, crc2 uint32, len2 uint64) uint32 {
 	if len2>>48 != 0 {
-		panic("gziptemplate: length out of range")
+		panic("gzipbuilder: length out of range")
 	}
 
 	// Apply len2 zeros to crc1.
