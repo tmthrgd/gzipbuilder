@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const debug = true
+const debug = false
 
 func debugLogf(t *testing.T, fmt string, args ...interface{}) {
 	t.Helper()
