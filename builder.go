@@ -262,7 +262,7 @@ func (b *Builder) packUncompressed(data []byte) []byte {
 
 func (b *Builder) finish() bool {
 	if b.err != nil {
-		b.fw = nil // See comment below.
+		b.fw, b.buf = nil, nil // See comment below.
 		return false
 	}
 
