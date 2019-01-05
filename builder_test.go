@@ -2,6 +2,7 @@ package gzipbuilder
 
 import (
 	"bytes"
+	"compress/flate"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
@@ -400,6 +401,9 @@ func TestBuilderInvalidLevel(t *testing.T) {
 	b.AddUncompressedData(nil)
 	assert.Equal(t, start, b.last, "last type should still be start")
 
+	b.RawDeflate()
+	assert.False(t, b.rawDeflate, "RawDeflate should be noop")
+
 	bb, err := b.Bytes()
 	require.EqualError(t, err, "flate: invalid compression level -100: want value in range [-2, 9]")
 	assert.Nil(t, bb, "expected nil []byte from Bytes")
@@ -532,6 +536,72 @@ func TestBuilderUncompressedPacking(t *testing.T) {
 
 			assert.True(t, bytes.Equal(bb1, bb2), "compressed data differs; len=%d vs len=%d, diff=%d",
 				len(bb1), len(bb2), len(bb2)-len(bb1))
+		})
+	}
+}
+
+func TestRawDeflate(t *testing.T) {
+	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
+	require.NoError(t, err, "failed to compress segment")
+
+	for _, tc := range []struct {
+		name string
+		fn   func(*Builder)
+	}{
+		{"empty", func(*Builder) {}},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world")) }},
+		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world")) }},
+		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world") }},
+		{"CompressedWriter", func(b *Builder) { io.WriteString(b.CompressedWriter(), "hello world") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewBuilder(DefaultCompression)
+			b.RawDeflate()
+			tc.fn(b)
+
+			bb, err := b.Bytes()
+			require.NoError(t, err, "Bytes returned error")
+			require.NoError(t, b.Err(), "Err returned error")
+
+			debugLogf(t, "%d:%x", len(bb), bb)
+
+			r := flate.NewReader(bytes.NewReader(bb))
+
+			res, err := ioutil.ReadAll(r)
+			require.NoError(t, err, "gzip decompression failed")
+
+			err = r.Close()
+			require.NoError(t, err, "gzip decompression failed")
+
+			if tc.name == "empty" {
+				assert.Equal(t, "", string(res))
+			} else {
+				assert.Equal(t, "hello world", string(res))
+			}
+		})
+	}
+}
+
+func TestRawDeflateErrorAfterWrite(t *testing.T) {
+	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
+	require.NoError(t, err, "failed to compress segment")
+
+	for _, tc := range []struct {
+		name string
+		fn   func(*Builder)
+	}{
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world")) }},
+		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world")) }},
+		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world") }},
+		{"CompressedWriter", func(b *Builder) { io.WriteString(b.CompressedWriter(), "hello world") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testBuilderError(t, "gzipbuilder: setting options must be done before writing", func(b *Builder) {
+				tc.fn(b)
+				b.RawDeflate()
+			})
 		})
 	}
 }

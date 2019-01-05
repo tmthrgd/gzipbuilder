@@ -37,7 +37,8 @@ const (
 )
 
 type Builder struct {
-	level int
+	level      int
+	rawDeflate bool
 
 	last sectionType
 
@@ -67,6 +68,22 @@ func NewBuilder(level int) *Builder {
 	return b
 }
 
+func (b *Builder) canSetOption() bool {
+	if b.last != start && b.err == nil {
+		b.err = errors.New("gzipbuilder: setting options must be done before writing")
+	}
+
+	return b.err == nil
+}
+
+func (b *Builder) RawDeflate() {
+	if !b.canSetOption() {
+		return
+	}
+
+	b.rawDeflate = true
+}
+
 func (b *Builder) Err() error {
 	return b.err
 }
@@ -80,7 +97,7 @@ func (b *Builder) canWrite() bool {
 }
 
 func (b *Builder) writeHeader() {
-	if b.err != nil || b.last != start {
+	if b.err != nil || b.last != start || b.rawDeflate {
 		return
 	}
 	b.last = header
@@ -125,8 +142,11 @@ func (b *Builder) AddPrecompressedData(comp *PrecompressedData) {
 	}
 	b.last = precompressed
 
-	b.size += uint32(comp.size)
-	b.crc = combineCRC32(crc32Mat, b.crc, comp.crc, uint64(comp.size))
+	if !b.rawDeflate {
+		b.size += uint32(comp.size)
+		b.crc = combineCRC32(crc32Mat, b.crc, comp.crc, uint64(comp.size))
+	}
+
 	b.buf.Write(comp.bytes)
 }
 
@@ -147,8 +167,11 @@ func (b *Builder) AddCompressedData(data []byte) {
 		b.fw, _ = flate.NewWriter(b.buf, b.level)
 	}
 
-	b.size += uint32(len(data))
-	b.crc = crc32.Update(b.crc, crc32.IEEETable, data)
+	if !b.rawDeflate {
+		b.size += uint32(len(data))
+		b.crc = crc32.Update(b.crc, crc32.IEEETable, data)
+	}
+
 	_, b.err = b.fw.Write(data)
 }
 
@@ -169,8 +192,10 @@ func (b *Builder) AddUncompressedData(data []byte) {
 		return
 	}
 
-	b.size += uint32(len(data))
-	b.crc = crc32.Update(b.crc, crc32.IEEETable, data)
+	if !b.rawDeflate {
+		b.size += uint32(len(data))
+		b.crc = crc32.Update(b.crc, crc32.IEEETable, data)
+	}
 
 	if packUncompressedData && b.last == uncompressed {
 		data = b.packUncompressed(data)
@@ -251,6 +276,10 @@ func (b *Builder) finish() {
 		b.buf.Write(closeFooter)
 	}
 	b.last = finished
+
+	if b.rawDeflate {
+		return
+	}
 
 	var footer [8]byte
 	binary.LittleEndian.PutUint32(footer[:4], b.crc)
