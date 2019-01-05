@@ -260,18 +260,18 @@ func (b *Builder) packUncompressed(data []byte) []byte {
 	return data[remaining:]
 }
 
-func (b *Builder) finish() {
+func (b *Builder) finish() bool {
 	if b.err != nil {
 		b.fw = nil // See comment below.
-		return
+		return false
 	}
 
 	switch b.last {
 	case finished:
-		return
+		return true
 	case compressed:
 		if b.err = b.fw.Close(); b.err != nil {
-			return
+			return false
 		}
 	case start:
 		b.writeHeader()
@@ -286,18 +286,18 @@ func (b *Builder) finish() {
 	b.fw = nil
 
 	if b.rawDeflate {
-		return
+		return true
 	}
 
 	var footer [8]byte
 	binary.LittleEndian.PutUint32(footer[:4], b.crc)
 	binary.LittleEndian.PutUint32(footer[4:], b.size)
 	b.buf.Write(footer[:])
+	return true
 }
 
 func (b *Builder) Bytes() ([]byte, error) {
-	b.finish()
-	if b.err != nil {
+	if !b.finish() {
 		return nil, b.err
 	}
 
@@ -305,8 +305,7 @@ func (b *Builder) Bytes() ([]byte, error) {
 }
 
 func (b *Builder) BytesOrPanic() []byte {
-	b.finish()
-	if b.err != nil {
+	if !b.finish() {
 		panic(b.err)
 	}
 
