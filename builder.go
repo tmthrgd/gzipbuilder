@@ -1,12 +1,5 @@
-// Package gziptemplate implements simple and fast gzipped template library.
-//
-// gziptemplate is faster than text/template, strings.Replace
-// and strings.Replacer.
-//
-// gziptemplate ideally fits for fast and simple placeholders' substitutions.
-//
-// Unlike other solutions, gziptemplate compresses templates once ahead of time.
-package gziptemplate
+// Package gzipbuilder provides methods to construct gzip compressed messages.
+package gzipbuilder
 
 import (
 	"bytes"

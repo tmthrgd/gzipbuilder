@@ -1,4 +1,4 @@
-package gziptemplate
+package gzipbuilder
 
 import (
 	"bytes"
