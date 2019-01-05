@@ -97,10 +97,14 @@ func (b *Builder) canWrite() bool {
 }
 
 func (b *Builder) writeHeader() {
-	if b.err != nil || b.last != start || b.rawDeflate {
+	if b.err != nil || b.last != start {
 		return
 	}
 	b.last = header
+
+	if b.rawDeflate {
+		return
+	}
 
 	const (
 		gzipID1     = 0x1f
