@@ -605,3 +605,42 @@ func TestRawDeflateErrorAfterWrite(t *testing.T) {
 		})
 	}
 }
+
+func TestPrecompressedWriterReset(t *testing.T) {
+	w := NewPrecompressedWriter(DefaultCompression)
+
+	io.WriteString(w, "hello world 1")
+
+	data1, err := w.Data()
+	require.NoError(t, err, "PrecompressedWriter.Data failed")
+
+	buf1 := w.buf
+	w.Reset()
+	assert.False(t, buf1 == w.buf, "buffer alias after Reset")
+
+	io.WriteString(w, "hello world 2")
+
+	data2, err := w.Data()
+	require.NoError(t, err, "PrecompressedWriter.Data failed")
+
+	b := NewBuilder(DefaultCompression)
+	b.AddPrecompressedData(data1)
+	b.AddPrecompressedData(data2)
+
+	bb, err := b.Bytes()
+	require.NoError(t, err, "Bytes returned error")
+	require.NoError(t, b.Err(), "Err returned error")
+
+	debugLogf(t, "%d:%x", len(bb), bb)
+
+	assert.Equal(t, "hello world 1hello world 2", decompressBytes(t, bb))
+}
+
+func TestPrecompressedWriterResetInvalidLevel(t *testing.T) {
+	w := NewPrecompressedWriter(-100)
+	w.Reset()
+
+	data, err := w.Data()
+	require.EqualError(t, err, "flate: invalid compression level -100: want value in range [-2, 9]")
+	assert.Nil(t, data, "expected nil *PrecompressedData")
+}
