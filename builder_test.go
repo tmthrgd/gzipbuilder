@@ -80,7 +80,7 @@ func TestBuilder(t *testing.T) {
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
-			require.NoError(t, b.Err(), "Err returned error")
+			assert.NoError(t, b.Err(), "Err returned error")
 
 			debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -110,7 +110,7 @@ func TestBuilderLast(t *testing.T) {
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
-			require.NoError(t, b.Err(), "Err returned error")
+			assert.NoError(t, b.Err(), "Err returned error")
 
 			debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -159,7 +159,7 @@ func TestBuilderDouble(t *testing.T) {
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
-			require.NoError(t, b.Err(), "Err returned error")
+			assert.NoError(t, b.Err(), "Err returned error")
 
 			debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -191,7 +191,7 @@ func TestBuilderCombinations(t *testing.T) {
 
 				bb, err := b.Bytes()
 				require.NoError(t, err, "Bytes returned error")
-				require.NoError(t, b.Err(), "Err returned error")
+				assert.NoError(t, b.Err(), "Err returned error")
 
 				debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -288,11 +288,11 @@ func TestBuilderMultipleBytes(t *testing.T) {
 
 	b1, err := b.Bytes()
 	require.NoError(t, err, "Bytes returned error")
-	require.NoError(t, b.Err(), "Err returned error")
+	assert.NoError(t, b.Err(), "Err returned error")
 
 	b2, err := b.Bytes()
 	require.NoError(t, err, "Bytes returned error")
-	require.NoError(t, b.Err(), "Err returned error")
+	assert.NoError(t, b.Err(), "Err returned error")
 
 	debugLogf(t, "%d:%x", len(b1), b1)
 
@@ -328,7 +328,7 @@ func TestBuilderLongData(t *testing.T) {
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
-			require.NoError(t, b.Err(), "Err returned error")
+			assert.NoError(t, b.Err(), "Err returned error")
 
 			assert.True(t, string(data) == decompressBytes(t, bb),
 				"decompressed data is wrong")
@@ -360,7 +360,7 @@ func TestBuilderEmptyData(t *testing.T) {
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
-			require.NoError(t, b.Err(), "Err returned error")
+			assert.NoError(t, b.Err(), "Err returned error")
 
 			debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -382,7 +382,7 @@ func TestBuilderInterleavedCompressedData(t *testing.T) {
 
 	bb, err := b.Bytes()
 	require.NoError(t, err, "Bytes returned error")
-	require.NoError(t, b.Err(), "Err returned error")
+	assert.NoError(t, b.Err(), "Err returned error")
 
 	debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -565,7 +565,7 @@ func TestRawDeflate(t *testing.T) {
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
-			require.NoError(t, b.Err(), "Err returned error")
+			assert.NoError(t, b.Err(), "Err returned error")
 
 			debugLogf(t, "%d:%x", len(bb), bb)
 
@@ -632,7 +632,7 @@ func TestPrecompressedWriterReset(t *testing.T) {
 
 	bb, err := b.Bytes()
 	require.NoError(t, err, "Bytes returned error")
-	require.NoError(t, b.Err(), "Err returned error")
+	assert.NoError(t, b.Err(), "Err returned error")
 
 	debugLogf(t, "%d:%x", len(bb), bb)
 
