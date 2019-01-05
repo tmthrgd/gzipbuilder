@@ -180,11 +180,10 @@ func (b *Builder) AddCompressedData(data []byte) {
 }
 
 func (b *Builder) flushCompressed() bool {
-	if b.last != compressed {
-		return true
+	if b.last == compressed {
+		b.err = b.fw.Flush()
 	}
 
-	b.err = b.fw.Flush()
 	return b.err == nil
 }
 
