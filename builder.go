@@ -316,6 +316,7 @@ func NewPrecompressedWriter(level int) *PrecompressedWriter {
 
 func (w *PrecompressedWriter) Reset() {
 	if w.fw == nil {
+		// The compression level was invalid, w.err contains the error.
 		return
 	}
 
