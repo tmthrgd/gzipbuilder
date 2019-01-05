@@ -572,10 +572,10 @@ func TestRawDeflate(t *testing.T) {
 			r := flate.NewReader(bytes.NewReader(bb))
 
 			res, err := ioutil.ReadAll(r)
-			require.NoError(t, err, "gzip decompression failed")
+			require.NoError(t, err, "flate decompression failed")
 
 			err = r.Close()
-			require.NoError(t, err, "gzip decompression failed")
+			require.NoError(t, err, "flate decompression failed")
 
 			if tc.name == "empty" {
 				assert.Equal(t, "", string(res))
