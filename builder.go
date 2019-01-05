@@ -124,30 +124,30 @@ func (b *Builder) writeHeader() {
 
 var crc32Mat = precomputeCRC32(crc32.IEEE)
 
-func (b *Builder) AddPrecompressedData(comp *PrecompressedData) {
+func (b *Builder) AddPrecompressedData(data *PrecompressedData) {
 	if b.last == start {
 		b.writeHeader()
 	}
 	if !b.canWrite() {
 		return
 	}
-	if b.level != comp.level {
+	if b.level != data.level {
 		b.err = errors.New("gzipbuilder: compression level mismatch")
 		return
 	}
 	// Check for an empty write after the compression level, this way we
 	// always surface a mismatch error regardless of the size.
-	if comp.size == 0 || !b.flushCompressed() {
+	if data.size == 0 || !b.flushCompressed() {
 		return
 	}
 	b.last = precompressed
 
 	if !b.rawDeflate {
-		b.size += uint32(comp.size)
-		b.crc = combineCRC32(crc32Mat, b.crc, comp.crc, uint64(comp.size))
+		b.size += uint32(data.size)
+		b.crc = combineCRC32(crc32Mat, b.crc, data.crc, uint64(data.size))
 	}
 
-	b.buf.Write(comp.bytes)
+	b.buf.Write(data.bytes)
 }
 
 func (b *Builder) AddCompressedData(data []byte) {
