@@ -263,6 +263,7 @@ func (b *Builder) packUncompressed(data []byte) []byte {
 
 func (b *Builder) finish() {
 	if b.err != nil {
+		b.fw = nil // See comment below.
 		return
 	}
 
@@ -280,6 +281,10 @@ func (b *Builder) finish() {
 		b.buf.Write(closeFooter)
 	}
 	b.last = finished
+
+	// Allow garbage collector to free the *flate.Writer now that
+	// it can no longer be used.
+	b.fw = nil
 
 	if b.rawDeflate {
 		return
