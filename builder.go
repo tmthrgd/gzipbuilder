@@ -314,6 +314,20 @@ func NewPrecompressedWriter(level int) *PrecompressedWriter {
 	return w
 }
 
+func (w *PrecompressedWriter) Reset() {
+	if w.fw == nil {
+		return
+	}
+
+	*w = PrecompressedWriter{
+		level: w.level,
+
+		buf: new(bytes.Buffer),
+		fw:  w.fw,
+	}
+	w.fw.Reset(w.buf)
+}
+
 func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
