@@ -560,6 +560,9 @@ func TestRawDeflate(t *testing.T) {
 			b.RawDeflate()
 			tc.fn(b)
 
+			assert.Zero(t, b.size, "size field should not have been updated")
+			assert.Zero(t, b.crc, "crc field should not have been updated")
+
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
 			require.NoError(t, b.Err(), "Err returned error")
