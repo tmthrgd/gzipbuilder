@@ -29,6 +29,7 @@ type sectionType int
 
 const (
 	start sectionType = iota
+	header
 	precompressed
 	compressed
 	uncompressed
@@ -53,30 +54,11 @@ type Builder struct {
 }
 
 func NewBuilder(level int) *Builder {
-	const (
-		gzipID1     = 0x1f
-		gzipID2     = 0x8b
-		gzipDeflate = 8
-	)
-	gzipHdr := [10]byte{
-		0: gzipID1, 1: gzipID2, 2: gzipDeflate,
-		9: 255, // unknown OS
-	}
-
-	switch level {
-	case BestCompression:
-		gzipHdr[8] = 2
-	case BestSpeed:
-		gzipHdr[8] = 4
-	}
-
 	b := &Builder{
 		level: level,
 
 		buf: new(bytes.Buffer),
 	}
-	b.buf.Write(gzipHdr[:])
-
 	if level < HuffmanOnly || level > BestCompression {
 		b.err = fmt.Errorf("flate: invalid compression level %d: want value in range [%d, %d]",
 			level, HuffmanOnly, BestCompression)
@@ -97,9 +79,38 @@ func (b *Builder) canWrite() bool {
 	return b.err == nil
 }
 
+func (b *Builder) writeHeader() {
+	if b.err != nil || b.last != start {
+		return
+	}
+	b.last = header
+
+	const (
+		gzipID1     = 0x1f
+		gzipID2     = 0x8b
+		gzipDeflate = 8
+	)
+	gzipHdr := [10]byte{
+		0: gzipID1, 1: gzipID2, 2: gzipDeflate,
+		9: 255, // unknown OS
+	}
+
+	switch b.level {
+	case BestCompression:
+		gzipHdr[8] = 2
+	case BestSpeed:
+		gzipHdr[8] = 4
+	}
+
+	b.buf.Write(gzipHdr[:])
+}
+
 var crc32Mat = precomputeCRC32(crc32.IEEE)
 
 func (b *Builder) AddPrecompressedData(comp *PrecompressedData) {
+	if b.last == start {
+		b.writeHeader()
+	}
 	if !b.canWrite() {
 		return
 	}
@@ -120,6 +131,9 @@ func (b *Builder) AddPrecompressedData(comp *PrecompressedData) {
 }
 
 func (b *Builder) AddCompressedData(data []byte) {
+	if b.last == start {
+		b.writeHeader()
+	}
 	if !b.canWrite() || len(data) == 0 {
 		return
 	}
@@ -148,6 +162,9 @@ func (b *Builder) flushCompressed() bool {
 }
 
 func (b *Builder) AddUncompressedData(data []byte) {
+	if b.last == start {
+		b.writeHeader()
+	}
 	if !b.canWrite() || len(data) == 0 || !b.flushCompressed() {
 		return
 	}
@@ -227,6 +244,9 @@ func (b *Builder) finish() {
 		if b.err = b.fw.Close(); b.err != nil {
 			return
 		}
+	case start:
+		b.writeHeader()
+		fallthrough
 	default:
 		b.buf.Write(closeFooter)
 	}

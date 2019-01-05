@@ -355,7 +355,7 @@ func TestBuilderEmptyData(t *testing.T) {
 			b := NewBuilder(DefaultCompression)
 			tc.fn(b)
 
-			assert.Equal(t, start, b.last, "last type should still be start")
+			assert.Equal(t, header, b.last, "last type should be header")
 
 			bb, err := b.Bytes()
 			require.NoError(t, err, "Bytes returned error")
@@ -396,6 +396,9 @@ func TestPrecompressDataInvalidLevel(t *testing.T) {
 
 func TestBuilderInvalidLevel(t *testing.T) {
 	b := NewBuilder(-100)
+
+	b.AddUncompressedData(nil)
+	assert.Equal(t, start, b.last, "last type should still be start")
 
 	bb, err := b.Bytes()
 	require.EqualError(t, err, "flate: invalid compression level -100: want value in range [-2, 9]")
