@@ -1,4 +1,8 @@
 // Package gzipbuilder provides methods to construct gzip compressed messages.
+//
+// The compression level taken throughout this package can be
+// DefaultCompression, NoCompression, HuffmanOnly or any integer value between
+// BestSpeed and BestCompression inclusive.
 package gzipbuilder
 
 import (
@@ -36,6 +40,9 @@ const (
 	finished
 )
 
+// A Builder incrementally builds a compressed GZIP stream. It supports
+// interleaving compressed, pre-compressed or uncompressed data into the
+// output.
 type Builder struct {
 	level      int
 	rawDeflate bool
@@ -54,6 +61,7 @@ type Builder struct {
 	err error
 }
 
+// NewBuilder creates a Builder using the given compression level.
 func NewBuilder(level int) *Builder {
 	b := &Builder{
 		level: level,
@@ -76,6 +84,8 @@ func (b *Builder) canSetOption() bool {
 	return b.err == nil
 }
 
+// RawDeflate sets the builder to only emit a raw DEFLATE stream without GZIP
+// framing.
 func (b *Builder) RawDeflate() {
 	if !b.canSetOption() {
 		return
@@ -84,6 +94,7 @@ func (b *Builder) RawDeflate() {
 	b.rawDeflate = true
 }
 
+// Err returns an error if one has occurred during building.
 func (b *Builder) Err() error {
 	return b.err
 }
@@ -128,6 +139,10 @@ func (b *Builder) writeHeader() {
 
 var crc32Mat = precomputeCRC32(crc32.IEEE)
 
+// AddPrecompressedData adds data that was precompressed to the builder.
+//
+// The PrecompressedData must have been created with the same compression level
+// as the builder.
 func (b *Builder) AddPrecompressedData(data *PrecompressedData) {
 	if b.last == start {
 		b.writeHeader()
@@ -154,6 +169,10 @@ func (b *Builder) AddPrecompressedData(data *PrecompressedData) {
 	b.buf.Write(data.bytes)
 }
 
+// AddCompressedData compresses data and adds it to the builder.
+//
+// Note: AddCompressedData is vulnerable to exploits such as BREACH when used
+// with secret data.
 func (b *Builder) AddCompressedData(data []byte) {
 	if b.last == start {
 		b.writeHeader()
@@ -187,6 +206,10 @@ func (b *Builder) flushCompressed() bool {
 	return b.err == nil
 }
 
+// AddUncompressedData adds data to the builder without compressing it.
+//
+// Note: AddUncompressedData should be used to add secret data to the stream,
+// such as authentication cookies, as it is immune to exploits such as BREACH.
 func (b *Builder) AddUncompressedData(data []byte) {
 	if b.last == start {
 		b.writeHeader()
@@ -296,6 +319,8 @@ func (b *Builder) finish() bool {
 	return true
 }
 
+// Bytes returns the bytes written by the builder or an error if one has
+// occurred during building.
 func (b *Builder) Bytes() ([]byte, error) {
 	if !b.finish() {
 		return nil, b.err
@@ -304,6 +329,8 @@ func (b *Builder) Bytes() ([]byte, error) {
 	return b.buf.Bytes(), nil
 }
 
+// BytesOrPanic returns the bytes written by the builder or panics if an error
+// has occurred during building.
 func (b *Builder) BytesOrPanic() []byte {
 	if !b.finish() {
 		panic(b.err)
@@ -319,6 +346,8 @@ func (w uncompressedWriter) Write(p []byte) (int, error) {
 	return len(p), w.err
 }
 
+// UncompressedWriter returns an io.Writer that will write uncompressed data to
+// the builder.
 func (b *Builder) UncompressedWriter() io.Writer {
 	return uncompressedWriter{b}
 }
@@ -330,10 +359,14 @@ func (w compressedWriter) Write(p []byte) (int, error) {
 	return len(p), w.err
 }
 
+// CompressedWriter returns an io.Writer that will write compressed data to the
+// builder.
 func (b *Builder) CompressedWriter() io.Writer {
 	return compressedWriter{b}
 }
 
+// PrecompressedData holds data that was compressed once and can be passed to a
+// Builder to avoid re-compressing static data.
 type PrecompressedData struct {
 	level int
 
@@ -342,12 +375,18 @@ type PrecompressedData struct {
 	crc   uint32
 }
 
+// PrecompressData compresses data at the given compression level.
 func PrecompressData(data []byte, level int) (*PrecompressedData, error) {
 	w := NewPrecompressedWriter(level)
 	w.Write(data)
 	return w.Data()
 }
 
+// PrecompressedWriter is an io.Writer that allows incrementally percompressing
+// data. Writes to a PrecompressedWriter are compressed and returned by Data.
+//
+// The PrecompressedData returned from Data can be passed to a Builder to avoid
+// re-compressing static data.
 type PrecompressedWriter struct {
 	level int
 
@@ -362,6 +401,8 @@ type PrecompressedWriter struct {
 	err error
 }
 
+// NewPrecompressedWriter creates a PrecompressedWriter using the given
+// compression level.
 func NewPrecompressedWriter(level int) *PrecompressedWriter {
 	w := &PrecompressedWriter{
 		level: level,
@@ -372,6 +413,9 @@ func NewPrecompressedWriter(level int) *PrecompressedWriter {
 	return w
 }
 
+// Reset discards the PrecompressedWriter's state and makes it equivalent to
+// the result of its original state from NewPrecompressedWriter. This permits
+// reusing a PrecompressedWriter rather than allocating a new one.
 func (w *PrecompressedWriter) Reset() {
 	if w.fw == nil {
 		// The compression level was invalid, w.err contains the error.
@@ -387,6 +431,9 @@ func (w *PrecompressedWriter) Reset() {
 	w.fw.Reset(w.buf)
 }
 
+// Write writes a compressed form of p to the PrecompressedWriter.
+//
+// It will return any error that has occurred during writing.
 func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
@@ -402,6 +449,10 @@ func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// Data returns a PrecompressedData struct containing the compressed data
+// written to the writer. It will return any error that has occurred during writing.
+//
+// It is safe to call Data multiple times.
 func (w *PrecompressedWriter) Data() (*PrecompressedData, error) {
 	if w.err == nil && !w.lastFlush {
 		w.err = w.fw.Flush()
