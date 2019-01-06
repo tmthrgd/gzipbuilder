@@ -73,13 +73,14 @@ const (
 // interleaving compressed, pre-compressed or uncompressed data into the
 // output.
 type Builder struct {
-	level      int
-	rawDeflate bool
+	level int
 
 	last sectionType
 
-	uncompHeaderIdx int
+	rawDeflate bool
+
 	uncompLen       uint16
+	uncompHeaderIdx int
 
 	buf  *bytes.Buffer
 	size uint32
