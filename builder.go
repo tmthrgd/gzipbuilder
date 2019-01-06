@@ -17,7 +17,11 @@ import (
 
 const packUncompressedData = true
 
-var closeFooter = []byte{0x01, 0x00, 0x00, 0xff, 0xff} // zero-length type 0 block, w/ final block flag
+var (
+	closeFooter = []byte{0x01, 0x00, 0x00, 0xff, 0xff} // zero-length type 0 block, w/ final block flag
+
+	crc32Mat = precomputeCRC32(crc32.IEEE)
+)
 
 // These constants are copied from the flate package, so that code that imports
 // this package does not also have to import "compress/flate".
@@ -136,8 +140,6 @@ func (b *Builder) writeHeader() {
 
 	b.buf.Write(gzipHdr[:])
 }
-
-var crc32Mat = precomputeCRC32(crc32.IEEE)
 
 // AddPrecompressedData adds data that was precompressed to the builder.
 //
