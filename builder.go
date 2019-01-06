@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"sync"
 )
 
 const packUncompressedData = true
@@ -21,7 +22,31 @@ var (
 	closeFooter = []byte{0x01, 0x00, 0x00, 0xff, 0xff} // zero-length type 0 block, w/ final block flag
 
 	crc32Mat = precomputeCRC32(crc32.IEEE)
+
+	flateWriterPools [flate.BestCompression - flate.HuffmanOnly + 1]sync.Pool
 )
+
+func flateWriterPool(level int) *sync.Pool {
+	return &flateWriterPools[level-flate.HuffmanOnly]
+}
+
+func flateWriterGet(w io.Writer, level int) *flate.Writer {
+	if fw, ok := flateWriterPool(level).Get().(*flate.Writer); ok {
+		fw.Reset(w)
+		return fw
+	}
+
+	fw, _ := flate.NewWriter(w, level)
+	return fw
+}
+
+func flateWriterPut(fw *flate.Writer, level int) {
+	if fw == nil {
+		return
+	}
+
+	flateWriterPool(level).Put(fw)
+}
 
 // These constants are copied from the flate package, so that code that imports
 // this package does not also have to import "compress/flate".
@@ -189,7 +214,7 @@ func (b *Builder) AddCompressedData(data []byte) {
 	b.last = compressed
 
 	if b.fw == nil {
-		b.fw, _ = flate.NewWriter(b.buf, b.level)
+		b.fw = flateWriterGet(b.buf, b.level)
 	}
 
 	if !b.rawDeflate {
@@ -287,7 +312,8 @@ func (b *Builder) packUncompressed(data []byte) []byte {
 
 func (b *Builder) finish() bool {
 	if b.err != nil {
-		b.fw, b.buf = nil, nil // See comment below.
+		flateWriterPut(b.fw, b.level)
+		b.fw, b.buf = nil, nil
 		return false
 	}
 
@@ -306,8 +332,7 @@ func (b *Builder) finish() bool {
 	}
 	b.last = finished
 
-	// Allow garbage collector to free the *flate.Writer now that
-	// it can no longer be used.
+	flateWriterPut(b.fw, b.level)
 	b.fw = nil
 
 	if b.rawDeflate {
