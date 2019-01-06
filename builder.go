@@ -357,6 +357,8 @@ type PrecompressedWriter struct {
 	size int64
 	crc  uint32
 
+	lastFlush bool
+
 	err error
 }
 
@@ -390,6 +392,8 @@ func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 		return 0, w.err
 	}
 
+	w.lastFlush = false
+
 	w.size += int64(len(p))
 	w.crc = crc32.Update(w.crc, crc32.IEEETable, p)
 
@@ -399,8 +403,9 @@ func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 }
 
 func (w *PrecompressedWriter) Data() (*PrecompressedData, error) {
-	if w.err == nil {
+	if w.err == nil && !w.lastFlush {
 		w.err = w.fw.Flush()
+		w.lastFlush = true
 	}
 	if w.err != nil {
 		return nil, w.err

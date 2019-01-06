@@ -647,3 +647,42 @@ func TestPrecompressedWriterResetInvalidLevel(t *testing.T) {
 	require.EqualError(t, err, "flate: invalid compression level -100: want value in range [-2, 9]")
 	assert.Nil(t, data, "expected nil *PrecompressedData")
 }
+
+func TestPrecompressedWriterMultipleData(t *testing.T) {
+	w := NewPrecompressedWriter(DefaultCompression)
+
+	io.WriteString(w, "hello world")
+
+	data1, err := w.Data()
+	require.NoError(t, err, "PrecompressedWriter.Data failed")
+	assert.True(t, w.lastFlush, "lastFlush should be true after Data")
+
+	data2, err := w.Data()
+	require.NoError(t, err, "PrecompressedWriter.Data failed")
+
+	assert.Equal(t, data1.bytes, data2.bytes, "differs after second Data call")
+
+	io.WriteString(w, " this is a test")
+	assert.False(t, w.lastFlush, "lastFlush should be false after Write")
+
+	data3, err := w.Data()
+	require.NoError(t, err, "PrecompressedWriter.Data failed")
+	assert.True(t, w.lastFlush, "lastFlush should be true after Data")
+
+	assert.NotEqual(t, data1.bytes, data3.bytes, "does not differ after Write")
+
+	var syncFlushFooter = []byte{0x00, 0x00, 0x00, 0xff, 0xff}
+	assert.True(t, bytes.HasSuffix(data3.bytes, syncFlushFooter),
+		"missing Z_SYNC_FLUSH")
+
+	b := NewBuilder(DefaultCompression)
+	b.AddPrecompressedData(data3)
+
+	bb, err := b.Bytes()
+	require.NoError(t, err, "Bytes returned error")
+	assert.NoError(t, b.Err(), "Err returned error")
+
+	debugLogf(t, "%d:%x", len(bb), bb)
+
+	assert.Equal(t, "hello world this is a test", decompressBytes(t, bb))
+}
