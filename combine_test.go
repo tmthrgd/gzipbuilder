@@ -137,3 +137,13 @@ func BenchmarkPrecomputeCRC32(b *testing.B) {
 
 	_ = mat
 }
+
+var sinkCRC32 uint32
+
+func BenchmarkCombineCRC32(b *testing.B) {
+	mat := precomputeCRC32(crc32.IEEE)
+
+	for n := 0; n < b.N; n++ {
+		sinkCRC32 = combineCRC32(mat, 0xdeadbeef, 0x1337f001, 1<<48-1)
+	}
+}
