@@ -46,17 +46,18 @@ func matrixMult(mat *[32]uint32, vec uint32) uint32 {
 	var sum uint32
 
 	for n := 0; n < len(mat); n, vec = n+4, vec>>4 {
+		next := mat[n : n+4 : n+4] // See golang.org/issue/27857.
 		if vec&(1<<0) != 0 {
-			sum ^= mat[n+0]
+			sum ^= next[0]
 		}
 		if vec&(1<<1) != 0 {
-			sum ^= mat[n+1]
+			sum ^= next[1]
 		}
 		if vec&(1<<2) != 0 {
-			sum ^= mat[n+2]
+			sum ^= next[2]
 		}
 		if vec&(1<<3) != 0 {
-			sum ^= mat[n+3]
+			sum ^= next[3]
 		}
 	}
 
