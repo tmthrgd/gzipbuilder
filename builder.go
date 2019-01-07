@@ -89,6 +89,8 @@ type Builder struct {
 	fw *flate.Writer
 
 	err error
+
+	scratch *[10]byte
 }
 
 // NewBuilder creates a Builder using the given compression level.
@@ -97,6 +99,8 @@ func NewBuilder(level int) *Builder {
 		level: level,
 
 		buf: new(bytes.Buffer),
+
+		scratch: new([10]byte),
 	}
 	if level < HuffmanOnly || level > BestCompression {
 		b.err = fmt.Errorf("flate: invalid compression level %d: want value in range [%d, %d]",
@@ -152,19 +156,19 @@ func (b *Builder) writeHeader() {
 		gzipID2     = 0x8b
 		gzipDeflate = 8
 	)
-	gzipHdr := [10]byte{
+	*b.scratch = [10]byte{
 		0: gzipID1, 1: gzipID2, 2: gzipDeflate,
 		9: 255, // unknown OS
 	}
 
 	switch b.level {
 	case BestCompression:
-		gzipHdr[8] = 2
+		b.scratch[8] = 2
 	case BestSpeed:
-		gzipHdr[8] = 4
+		b.scratch[8] = 4
 	}
 
-	b.buf.Write(gzipHdr[:])
+	b.buf.Write(b.scratch[:])
 }
 
 // AddPrecompressedData adds data that was precompressed to the builder.
@@ -283,10 +287,10 @@ func (b *Builder) zeroWrite(p []byte) {
 	 *  b.err = hbw.err
 	 */
 
-	var hdr [5]byte
-	binary.LittleEndian.PutUint16(hdr[1:], uint16(len(p)))
-	binary.LittleEndian.PutUint16(hdr[3:], ^uint16(len(p)))
-	b.buf.Write(hdr[:])
+	b.scratch[0] = 0
+	binary.LittleEndian.PutUint16(b.scratch[1:], uint16(len(p)))
+	binary.LittleEndian.PutUint16(b.scratch[3:], ^uint16(len(p)))
+	b.buf.Write(b.scratch[:5])
 
 	b.buf.Write(p)
 }
@@ -340,10 +344,9 @@ func (b *Builder) finish() bool {
 		return true
 	}
 
-	var footer [8]byte
-	binary.LittleEndian.PutUint32(footer[:4], b.crc)
-	binary.LittleEndian.PutUint32(footer[4:], b.size)
-	b.buf.Write(footer[:])
+	binary.LittleEndian.PutUint32(b.scratch[:4], b.crc)
+	binary.LittleEndian.PutUint32(b.scratch[4:], b.size)
+	b.buf.Write(b.scratch[:8])
 	return true
 }
 
