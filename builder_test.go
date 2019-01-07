@@ -66,15 +66,15 @@ func decompressBytes(t *testing.T, b []byte) string {
 func TestBuilder(t *testing.T) {
 	for level := HuffmanOnly; level <= BestCompression; level++ {
 		t.Run("level:"+strconv.Itoa(level), func(t *testing.T) {
-			seg, err := PrecompressData([]byte("hello world "), level)
-			require.NoError(t, err, "failed to compress segment")
+			d, err := PrecompressData([]byte("hello world "), level)
+			require.NoError(t, err, "failed to precompress data")
 
 			b := NewBuilder(level)
 
-			b.AddPrecompressedData(seg)
+			b.AddPrecompressedData(d)
 			b.AddUncompressedData([]byte("super secret"))
 			b.AddCompressedData([]byte(" messages need to be sent. "))
-			b.AddPrecompressedData(seg)
+			b.AddPrecompressedData(d)
 			io.WriteString(b.CompressedWriter(), "this is another ")
 			io.WriteString(b.UncompressedWriter(), "test.")
 
@@ -91,14 +91,14 @@ func TestBuilder(t *testing.T) {
 }
 
 func TestBuilderLast(t *testing.T) {
-	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData([]byte("hello world"), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	for _, tc := range []struct {
 		name string
 		fn   func(*Builder)
 	}{
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world")) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world")) }},
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world") }},
@@ -120,19 +120,19 @@ func TestBuilderLast(t *testing.T) {
 }
 
 func TestBuilderDouble(t *testing.T) {
-	seg1, err := PrecompressData([]byte("hello "), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d1, err := PrecompressData([]byte("hello "), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
-	seg2, err := PrecompressData([]byte("world"), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d2, err := PrecompressData([]byte("world"), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	for _, tc := range []struct {
 		name string
 		fn   func(*Builder)
 	}{
 		{"AddPrecompressedData", func(b *Builder) {
-			b.AddPrecompressedData(seg1)
-			b.AddPrecompressedData(seg2)
+			b.AddPrecompressedData(d1)
+			b.AddPrecompressedData(d2)
 		}},
 		{"AddUncompressedData", func(b *Builder) {
 			b.AddUncompressedData([]byte("hello "))
@@ -169,14 +169,14 @@ func TestBuilderDouble(t *testing.T) {
 }
 
 func TestBuilderCombinations(t *testing.T) {
-	seg, err := PrecompressData([]byte("hello world "), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData([]byte("hello world "), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	tcs := []struct {
 		name string
 		fn   func(*Builder)
 	}{
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world ")) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world ")) }},
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world ") }},
@@ -253,21 +253,21 @@ func testBuilderError(t *testing.T, msg string, fn func(*Builder)) {
 }
 
 func TestBuilderLevelMismatch(t *testing.T) {
-	seg, err := PrecompressData(nil, BestCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData(nil, BestCompression)
+	require.NoError(t, err, "failed to precompress data")
 
-	testBuilderError(t, "gzipbuilder: compression level mismatch", func(b *Builder) { b.AddPrecompressedData(seg) })
+	testBuilderError(t, "gzipbuilder: compression level mismatch", func(b *Builder) { b.AddPrecompressedData(d) })
 }
 
 func TestBuilderFinished(t *testing.T) {
-	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData([]byte("hello world"), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	for _, tc := range []struct {
 		name string
 		fn   func(*Builder)
 	}{
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world")) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world")) }},
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world") }},
@@ -309,14 +309,14 @@ func TestBuilderMultipleBytesOrPanic(t *testing.T) {
 func TestBuilderLongData(t *testing.T) {
 	data := bytes.Repeat([]byte{'a'}, 1<<17) // 128 KiB
 
-	seg, err := PrecompressData(data, DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData(data, DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	for _, tc := range []struct {
 		name string
 		fn   func(*Builder)
 	}{
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData(data) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData(data) }},
 		{"UncompressedWriter", func(b *Builder) { b.UncompressedWriter().Write(data) }},
@@ -337,8 +337,8 @@ func TestBuilderLongData(t *testing.T) {
 }
 
 func TestBuilderEmptyData(t *testing.T) {
-	seg, err := PrecompressData(nil, DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData(nil, DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	noData := NewBuilder(DefaultCompression).BytesOrPanic()
 
@@ -346,7 +346,7 @@ func TestBuilderEmptyData(t *testing.T) {
 		name string
 		fn   func(*Builder)
 	}{
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData(nil) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData(nil) }},
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "") }},
@@ -390,9 +390,9 @@ func TestBuilderInterleavedCompressedData(t *testing.T) {
 }
 
 func TestPrecompressDataInvalidLevel(t *testing.T) {
-	seg, err := PrecompressData(nil, -100)
+	d, err := PrecompressData(nil, -100)
 	require.EqualError(t, err, "flate: invalid compression level -100: want value in range [-2, 9]")
-	assert.Nil(t, seg, "expected nil *PrecompressedData")
+	assert.Nil(t, d, "expected nil *PrecompressedData")
 }
 
 func TestBuilderInvalidLevel(t *testing.T) {
@@ -541,15 +541,15 @@ func TestBuilderUncompressedPacking(t *testing.T) {
 }
 
 func TestBuilderRawDeflate(t *testing.T) {
-	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData([]byte("hello world"), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	for _, tc := range []struct {
 		name string
 		fn   func(*Builder)
 	}{
 		{"empty", func(*Builder) {}},
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world")) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world")) }},
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world") }},
@@ -587,14 +587,14 @@ func TestBuilderRawDeflate(t *testing.T) {
 }
 
 func TestBuilderRawDeflateErrorAfterWrite(t *testing.T) {
-	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData([]byte("hello world"), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	for _, tc := range []struct {
 		name string
 		fn   func(*Builder)
 	}{
-		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(seg) }},
+		{"AddPrecompressedData", func(b *Builder) { b.AddPrecompressedData(d) }},
 		{"AddUncompressedData", func(b *Builder) { b.AddUncompressedData([]byte("hello world")) }},
 		{"AddCompressedData", func(b *Builder) { b.AddCompressedData([]byte("hello world")) }},
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world") }},
@@ -610,14 +610,14 @@ func TestBuilderRawDeflateErrorAfterWrite(t *testing.T) {
 }
 
 func TestWriter(t *testing.T) {
-	seg, err := PrecompressData([]byte(" "), DefaultCompression)
-	require.NoError(t, err, "failed to compress segment")
+	d, err := PrecompressData([]byte(" "), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
 
 	var buf bytes.Buffer
 	w := NewWriter(&buf, DefaultCompression)
 
 	w.AddUncompressedData([]byte("hello"))
-	w.AddPrecompressedData(seg)
+	w.AddPrecompressedData(d)
 	w.AddCompressedData([]byte("world"))
 
 	assert.NoError(t, w.Close(), "error from Close")
