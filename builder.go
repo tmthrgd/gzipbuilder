@@ -428,8 +428,7 @@ func NewWriter(w io.Writer, level int) *Writer {
 // io.Writer and writing the GZIP footer. It returns an error if one has
 // occurred during building. It does not close the underlying io.Writer.
 func (b *Writer) Close() error {
-	if b.w == nil {
-		// Writer already closed.
+	if b.last == finished {
 		return b.err
 	}
 
@@ -440,7 +439,6 @@ func (b *Writer) Close() error {
 
 	bufioWriterPool.Put(buf)
 	b.w = nil
-
 	return b.err
 }
 
