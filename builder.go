@@ -1,4 +1,4 @@
-// Package gzipbuilder provides methods to construct gzip compressed messages.
+// Package gzipbuilder provides methods to construct GZIP compressed messages.
 //
 // The compression level taken throughout this package can be
 // DefaultCompression, NoCompression, HuffmanOnly or any integer value between
