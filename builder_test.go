@@ -540,7 +540,7 @@ func TestBuilderUncompressedPacking(t *testing.T) {
 	}
 }
 
-func TestRawDeflate(t *testing.T) {
+func TestBuilderRawDeflate(t *testing.T) {
 	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
 	require.NoError(t, err, "failed to compress segment")
 
@@ -586,7 +586,7 @@ func TestRawDeflate(t *testing.T) {
 	}
 }
 
-func TestRawDeflateErrorAfterWrite(t *testing.T) {
+func TestBuilderRawDeflateErrorAfterWrite(t *testing.T) {
 	seg, err := PrecompressData([]byte("hello world"), DefaultCompression)
 	require.NoError(t, err, "failed to compress segment")
 
