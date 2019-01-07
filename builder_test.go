@@ -320,7 +320,7 @@ func TestBuilderFinished(t *testing.T) {
 		{"CompressedWriter", func(b *Builder) { io.WriteString(b.CompressedWriter(), "hello world") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			testBuilderError(t, "gzipbuilder: cannot modify Builder after Bytes called", func(b *Builder) {
+			testBuilderError(t, "gzipbuilder: cannot add data to builder after footer written", func(b *Builder) {
 				b.BytesOrPanic()
 				tc.fn(b)
 			})

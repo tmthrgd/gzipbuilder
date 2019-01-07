@@ -144,7 +144,7 @@ func (b *builder) Err() error {
 
 func (b *builder) canWrite() bool {
 	if b.last == finished && b.err == nil {
-		b.err = errors.New("gzipbuilder: cannot modify Builder after Bytes called")
+		b.err = errors.New("gzipbuilder: cannot add data to builder after footer written")
 	}
 
 	return b.err == nil
