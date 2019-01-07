@@ -368,9 +368,7 @@ func (b *builder) finish() bool {
 	case finished:
 		return true
 	case compressed:
-		if b.err = b.fw.Close(); b.err != nil {
-			return false
-		}
+		b.err = b.fw.Close()
 	case start:
 		b.writeHeader()
 		fallthrough
@@ -379,7 +377,7 @@ func (b *builder) finish() bool {
 	}
 	b.last = finished
 
-	if !b.rawDeflate {
+	if !b.rawDeflate && b.err == nil {
 		binary.LittleEndian.PutUint32(b.scratch[:4], b.crc)
 		binary.LittleEndian.PutUint32(b.scratch[4:], b.size)
 		_, b.err = b.w.Write(b.scratch[:8])
