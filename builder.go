@@ -315,6 +315,32 @@ func (b *Builder) packUncompressed(data []byte) []byte {
 	return data[remaining:]
 }
 
+type uncompressedWriter struct{ *builder }
+
+func (w uncompressedWriter) Write(p []byte) (int, error) {
+	w.AddUncompressedData(p)
+	return len(p), w.err
+}
+
+// UncompressedWriter returns an io.Writer that will write uncompressed data to
+// the builder.
+func (b *builder) UncompressedWriter() io.Writer {
+	return uncompressedWriter{b}
+}
+
+type compressedWriter struct{ *builder }
+
+func (w compressedWriter) Write(p []byte) (int, error) {
+	w.AddCompressedData(p)
+	return len(p), w.err
+}
+
+// CompressedWriter returns an io.Writer that will write compressed data to the
+// builder.
+func (b *builder) CompressedWriter() io.Writer {
+	return compressedWriter{b}
+}
+
 func (b *Builder) finish() bool {
 	if b.err != nil {
 		flateWriterPut(b.fw, b.level)
@@ -368,32 +394,6 @@ func (b *Builder) BytesOrPanic() []byte {
 	}
 
 	return b.buf.Bytes()
-}
-
-type uncompressedWriter struct{ *Builder }
-
-func (w uncompressedWriter) Write(p []byte) (int, error) {
-	w.AddUncompressedData(p)
-	return len(p), w.err
-}
-
-// UncompressedWriter returns an io.Writer that will write uncompressed data to
-// the builder.
-func (b *Builder) UncompressedWriter() io.Writer {
-	return uncompressedWriter{b}
-}
-
-type compressedWriter struct{ *Builder }
-
-func (w compressedWriter) Write(p []byte) (int, error) {
-	w.AddCompressedData(p)
-	return len(p), w.err
-}
-
-// CompressedWriter returns an io.Writer that will write compressed data to the
-// builder.
-func (b *Builder) CompressedWriter() io.Writer {
-	return compressedWriter{b}
 }
 
 // PrecompressedData holds data that was compressed once and can be passed to a
