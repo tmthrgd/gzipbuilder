@@ -609,6 +609,38 @@ func TestBuilderRawDeflateErrorAfterWrite(t *testing.T) {
 	}
 }
 
+func TestWriter(t *testing.T) {
+	seg, err := PrecompressData([]byte(" "), DefaultCompression)
+	require.NoError(t, err, "failed to compress segment")
+
+	var buf bytes.Buffer
+	w := NewWriter(&buf, DefaultCompression)
+
+	w.AddUncompressedData([]byte("hello"))
+	w.AddPrecompressedData(seg)
+	w.AddCompressedData([]byte("world"))
+
+	assert.NoError(t, w.Close(), "error from Close")
+	assert.Equal(t, "hello world", decompressBytes(t, buf.Bytes()))
+}
+
+func TestWriterInvalidLevel(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewWriter(&buf, -100)
+
+	w.AddUncompressedData(nil)
+	assert.Equal(t, start, w.last, "last type should still be start")
+
+	w.RawDeflate()
+	assert.False(t, w.rawDeflate, "RawDeflate should be noop")
+
+	for i := 0; i < 2; i++ {
+		assert.EqualError(t, w.Close(),
+			"flate: invalid compression level -100: want value in range [-2, 9]",
+			"i=%d", i)
+	}
+}
+
 func TestPrecompressedWriterReset(t *testing.T) {
 	w := NewPrecompressedWriter(DefaultCompression)
 
