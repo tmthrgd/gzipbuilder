@@ -203,6 +203,8 @@ func TestBuilderCombinations(t *testing.T) {
 		{"UncompressedWriter", func(b *Builder) { io.WriteString(b.UncompressedWriter(), "hello world ") }},
 		{"CompressedWriter", func(b *Builder) { io.WriteString(b.CompressedWriter(), "hello world ") }},
 	}
+	tcsNoWriters := tcs[:len(tcs)-2]
+
 	for _, tc1 := range tcs {
 		for _, tc2 := range tcs {
 			t.Run(tc1.name+"+"+tc2.name, func(t *testing.T) {
@@ -218,6 +220,28 @@ func TestBuilderCombinations(t *testing.T) {
 
 				assert.Equal(t, "hello world hello world ", decompressBytes(t, bb))
 			})
+		}
+	}
+
+	for _, tc1 := range tcsNoWriters {
+		for _, tc2 := range tcsNoWriters {
+			for _, tc3 := range tcsNoWriters {
+				t.Run(tc1.name+"+"+tc2.name+"+"+tc3.name, func(t *testing.T) {
+					b := NewBuilder(DefaultCompression)
+					tc1.fn(b)
+					tc2.fn(b)
+					tc3.fn(b)
+
+					bb, err := b.Bytes()
+					require.NoError(t, err, "Bytes returned error")
+					assert.NoError(t, b.Err(), "Err returned error")
+
+					debugLogf(t, "%d:%x", len(bb), bb)
+
+					assert.Equal(t, "hello world hello world hello world ",
+						decompressBytes(t, bb))
+				})
+			}
 		}
 	}
 }
