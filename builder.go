@@ -49,10 +49,6 @@ func flateWriterGet(w io.Writer, level int) *flate.Writer {
 }
 
 func flateWriterPut(fw *flate.Writer, level int) {
-	if fw == nil {
-		return
-	}
-
 	flateWriterPool(level).Put(fw)
 }
 
@@ -383,8 +379,11 @@ func (b *builder) finish() bool {
 		_, b.err = b.w.Write(b.scratch[:8])
 	}
 
-	flateWriterPut(b.fw, b.level)
-	b.fw = nil
+	if b.fw != nil {
+		flateWriterPut(b.fw, b.level)
+		b.fw = nil
+	}
+
 	return b.err == nil
 }
 
