@@ -6,6 +6,7 @@
 package gzipbuilder
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"encoding/binary"
@@ -69,10 +70,7 @@ const (
 	finished
 )
 
-// A Builder incrementally builds a compressed GZIP stream. It supports
-// interleaving compressed, pre-compressed or uncompressed data into the
-// output.
-type Builder struct {
+type builder struct {
 	level int
 
 	last sectionType
@@ -82,23 +80,26 @@ type Builder struct {
 	uncompLen       uint16
 	uncompHeaderIdx int
 
-	buf  *bytes.Buffer
+	w  io.Writer
+	fw *flate.Writer
+
 	size uint32
 	crc  uint32
-
-	fw *flate.Writer
 
 	err error
 
 	scratch *[10]byte
 }
 
-// NewBuilder creates a Builder using the given compression level.
-func NewBuilder(level int) *Builder {
-	b := &Builder{
+// newBuilder constructs a new builder. w must have sticky write errors.
+//
+// If w is a *bytes.Buffer, successive uncompressed writes will be packed to
+// use as little space as possible.
+func newBuilder(w io.Writer, level int) builder {
+	b := builder{
 		level: level,
 
-		buf: new(bytes.Buffer),
+		w: w,
 
 		scratch: new([10]byte),
 	}
@@ -110,7 +111,7 @@ func NewBuilder(level int) *Builder {
 	return b
 }
 
-func (b *Builder) canSetOption() bool {
+func (b *builder) canSetOption() bool {
 	if b.last != start && b.err == nil {
 		b.err = errors.New("gzipbuilder: setting options must be done before writing")
 	}
@@ -120,7 +121,7 @@ func (b *Builder) canSetOption() bool {
 
 // RawDeflate sets the builder to only emit a raw DEFLATE stream without GZIP
 // framing.
-func (b *Builder) RawDeflate() {
+func (b *builder) RawDeflate() {
 	if !b.canSetOption() {
 		return
 	}
@@ -129,11 +130,11 @@ func (b *Builder) RawDeflate() {
 }
 
 // Err returns an error if one has occurred during building.
-func (b *Builder) Err() error {
+func (b *builder) Err() error {
 	return b.err
 }
 
-func (b *Builder) canWrite() bool {
+func (b *builder) canWrite() bool {
 	if b.last == finished && b.err == nil {
 		b.err = errors.New("gzipbuilder: cannot modify Builder after Bytes called")
 	}
@@ -141,7 +142,7 @@ func (b *Builder) canWrite() bool {
 	return b.err == nil
 }
 
-func (b *Builder) writeHeader() {
+func (b *builder) writeHeader() {
 	if b.err != nil || b.last != start {
 		return
 	}
@@ -168,14 +169,14 @@ func (b *Builder) writeHeader() {
 		b.scratch[8] = 4
 	}
 
-	b.buf.Write(b.scratch[:])
+	_, b.err = b.w.Write(b.scratch[:])
 }
 
 // AddPrecompressedData adds data that was precompressed to the builder.
 //
 // The PrecompressedData must have been created with the same compression level
 // as the builder.
-func (b *Builder) AddPrecompressedData(data *PrecompressedData) {
+func (b *builder) AddPrecompressedData(data *PrecompressedData) {
 	if b.last == start {
 		b.writeHeader()
 	}
@@ -198,14 +199,14 @@ func (b *Builder) AddPrecompressedData(data *PrecompressedData) {
 		b.crc = combineCRC32(crc32Mat, b.crc, data.crc, uint64(data.size))
 	}
 
-	b.buf.Write(data.bytes)
+	_, b.err = b.w.Write(data.bytes)
 }
 
 // AddCompressedData compresses data and adds it to the builder.
 //
 // Note: AddCompressedData is vulnerable to exploits such as BREACH when used
 // with secret data.
-func (b *Builder) AddCompressedData(data []byte) {
+func (b *builder) AddCompressedData(data []byte) {
 	if b.last == start {
 		b.writeHeader()
 	}
@@ -214,12 +215,12 @@ func (b *Builder) AddCompressedData(data []byte) {
 	}
 
 	if b.last != compressed && b.fw != nil {
-		b.fw.Reset(b.buf)
+		b.fw.Reset(b.w)
 	}
 	b.last = compressed
 
 	if b.fw == nil {
-		b.fw = flateWriterGet(b.buf, b.level)
+		b.fw = flateWriterGet(b.w, b.level)
 	}
 
 	if !b.rawDeflate {
@@ -230,7 +231,7 @@ func (b *Builder) AddCompressedData(data []byte) {
 	_, b.err = b.fw.Write(data)
 }
 
-func (b *Builder) flushCompressed() bool {
+func (b *builder) flushCompressed() bool {
 	if b.last == compressed {
 		b.err = b.fw.Flush()
 	}
@@ -242,7 +243,7 @@ func (b *Builder) flushCompressed() bool {
 //
 // Note: AddUncompressedData should be used to add secret data to the stream,
 // such as authentication cookies, as it is immune to exploits such as BREACH.
-func (b *Builder) AddUncompressedData(data []byte) {
+func (b *builder) AddUncompressedData(data []byte) {
 	if b.last == start {
 		b.writeHeader()
 	}
@@ -269,13 +270,15 @@ func (b *Builder) AddUncompressedData(data []byte) {
 		data = data[maxLength:]
 	}
 
-	b.uncompHeaderIdx = b.buf.Len()
-	b.uncompLen = uint16(len(data))
+	if buf, ok := b.w.(*bytes.Buffer); ok {
+		b.uncompHeaderIdx = buf.Len()
+		b.uncompLen = uint16(len(data))
+	}
 
 	b.zeroWrite(data)
 }
 
-func (b *Builder) zeroWrite(p []byte) {
+func (b *builder) zeroWrite(p []byte) {
 	/* The following code is equivalent to:
 	 *  hbw := newHuffmanBitWriter(b.buf)
 	 *  hbw.writeStoredHeader(len(p), false)
@@ -290,14 +293,15 @@ func (b *Builder) zeroWrite(p []byte) {
 	b.scratch[0] = 0
 	binary.LittleEndian.PutUint16(b.scratch[1:], uint16(len(p)))
 	binary.LittleEndian.PutUint16(b.scratch[3:], ^uint16(len(p)))
-	b.buf.Write(b.scratch[:5])
+	b.w.Write(b.scratch[:5])
 
-	b.buf.Write(p)
+	_, b.err = b.w.Write(p)
 }
 
-func (b *Builder) packUncompressed(data []byte) []byte {
+func (b *builder) packUncompressed(data []byte) []byte {
 	const maxLength = ^uint16(0)
-	if b.uncompLen == maxLength {
+	buf, ok := b.w.(*bytes.Buffer)
+	if !ok || b.uncompLen == maxLength {
 		return data
 	}
 
@@ -307,11 +311,11 @@ func (b *Builder) packUncompressed(data []byte) []byte {
 	}
 	b.uncompLen += remaining
 
-	hdr := b.buf.Bytes()[b.uncompHeaderIdx : b.uncompHeaderIdx+5]
+	hdr := buf.Bytes()[b.uncompHeaderIdx : b.uncompHeaderIdx+5]
 	binary.LittleEndian.PutUint16(hdr[1:], uint16(b.uncompLen))
 	binary.LittleEndian.PutUint16(hdr[3:], ^uint16(b.uncompLen))
 
-	b.buf.Write(data[:remaining])
+	buf.Write(data[:remaining])
 	return data[remaining:]
 }
 
@@ -341,10 +345,10 @@ func (b *builder) CompressedWriter() io.Writer {
 	return compressedWriter{b}
 }
 
-func (b *Builder) finish() bool {
+func (b *builder) finish() bool {
 	if b.err != nil {
 		flateWriterPut(b.fw, b.level)
-		b.fw, b.buf = nil, nil
+		b.fw = nil
 		return false
 	}
 
@@ -359,21 +363,29 @@ func (b *Builder) finish() bool {
 		b.writeHeader()
 		fallthrough
 	default:
-		b.buf.Write(closeFooter)
+		_, b.err = b.w.Write(closeFooter)
 	}
 	b.last = finished
 
-	flateWriterPut(b.fw, b.level)
-	b.fw = nil
-
-	if b.rawDeflate {
-		return true
+	if !b.rawDeflate {
+		binary.LittleEndian.PutUint32(b.scratch[:4], b.crc)
+		binary.LittleEndian.PutUint32(b.scratch[4:], b.size)
+		_, b.err = b.w.Write(b.scratch[:8])
 	}
 
-	binary.LittleEndian.PutUint32(b.scratch[:4], b.crc)
-	binary.LittleEndian.PutUint32(b.scratch[4:], b.size)
-	b.buf.Write(b.scratch[:8])
-	return true
+	flateWriterPut(b.fw, b.level)
+	b.fw = nil
+	return b.err == nil
+}
+
+// A Builder incrementally builds a compressed GZIP stream. It supports
+// interleaving compressed, pre-compressed or uncompressed data into the
+// output.
+type Builder struct{ builder }
+
+// NewBuilder creates a Builder using the given compression level.
+func NewBuilder(level int) *Builder {
+	return &Builder{newBuilder(new(bytes.Buffer), level)}
 }
 
 // Bytes returns the bytes written by the builder or an error if one has
@@ -383,7 +395,7 @@ func (b *Builder) Bytes() ([]byte, error) {
 		return nil, b.err
 	}
 
-	return b.buf.Bytes(), nil
+	return b.w.(*bytes.Buffer).Bytes(), nil
 }
 
 // BytesOrPanic returns the bytes written by the builder or panics if an error
@@ -393,7 +405,35 @@ func (b *Builder) BytesOrPanic() []byte {
 		panic(b.err)
 	}
 
-	return b.buf.Bytes()
+	return b.w.(*bytes.Buffer).Bytes()
+}
+
+// A Writer incrementally builds a compressed GZIP stream. It supports
+// interleaving compressed, pre-compressed or uncompressed data into the
+// output.
+type Writer struct{ builder }
+
+// NewWriter creates a Writer using the given compression level. Data is
+// written to w.
+func NewWriter(w io.Writer, level int) *Writer {
+	return &Writer{newBuilder(bufio.NewWriterSize(w, 1024), level)}
+}
+
+// Close closes the Writer by flushing any unwritten data to the underlying
+// io.Writer and writing the GZIP footer. It returns an error if one has
+// occurred during building. It does not close the underlying io.Writer.
+func (b *Writer) Close() error {
+	if b.w == nil {
+		// Writer already closed.
+		return b.err
+	}
+
+	if b.finish() {
+		b.err = b.w.(*bufio.Writer).Flush()
+	}
+	b.w = nil
+
+	return b.err
 }
 
 // PrecompressedData holds data that was compressed once and can be passed to a
