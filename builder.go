@@ -350,26 +350,20 @@ func (b *builder) CompressedWriter() io.Writer {
 }
 
 func (b *builder) finish() bool {
-	if b.err != nil {
-		flateWriterPut(b.fw, b.level)
-		b.fw = nil
-		return false
-	}
-
 	switch b.last {
 	case finished:
-		return true
+		return b.err == nil
 	case compressed:
-		b.err = b.fw.Close()
+		if b.err == nil {
+			b.err = b.fw.Close()
+		}
 	case start:
 		b.writeHeader()
-		if b.err != nil {
-			break
-		}
-
 		fallthrough
 	default:
-		_, b.err = b.w.Write(closeFooter)
+		if b.err == nil {
+			_, b.err = b.w.Write(closeFooter)
+		}
 	}
 	b.last = finished
 
