@@ -107,7 +107,7 @@ type builder struct {
 	scratch *[10]byte
 }
 
-// newBuilder constructs a new builder. w must have sticky write errors.
+// newBuilder constructs a new builder.
 //
 // If w is a *bytes.Buffer, successive uncompressed writes will be packed to
 // use as little space as possible.
@@ -279,6 +279,10 @@ func (b *builder) AddUncompressedData(data []byte) {
 	const maxLength = ^uint16(0)
 	for len(data) > int(maxLength) {
 		b.zeroWrite(data[:maxLength])
+		if b.err != nil {
+			return
+		}
+
 		data = data[maxLength:]
 	}
 
@@ -294,7 +298,10 @@ func (b *builder) zeroWrite(p []byte) {
 	b.scratch[0] = 0
 	binary.LittleEndian.PutUint16(b.scratch[1:], uint16(len(p)))
 	binary.LittleEndian.PutUint16(b.scratch[3:], ^uint16(len(p)))
-	b.w.Write(b.scratch[:5])
+	_, b.err = b.w.Write(b.scratch[:5])
+	if b.err != nil {
+		return
+	}
 
 	_, b.err = b.w.Write(p)
 }
@@ -360,6 +367,10 @@ func (b *builder) finish() bool {
 		b.err = b.fw.Close()
 	case start:
 		b.writeHeader()
+		if b.err != nil {
+			break
+		}
+
 		fallthrough
 	default:
 		_, b.err = b.w.Write(closeFooter)

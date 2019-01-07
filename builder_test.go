@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
+	"errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -679,6 +680,56 @@ func TestWriterInvalidLevel(t *testing.T) {
 	}
 }
 
+func TestWriterStickyWriteErrors(t *testing.T) {
+	d, err := PrecompressData([]byte(" this is"), DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
+
+	buildMsg := func(w *Writer) {
+		w.AddCompressedData([]byte("hello "))
+		w.AddUncompressedData([]byte("world"))
+		w.AddPrecompressedData(d)
+		w.AddUncompressedData([]byte(" a te"))
+		w.AddCompressedData([]byte("st."))
+	}
+
+	var buf bytes.Buffer
+	w := NewWriter(&buf, DefaultCompression)
+
+	buildMsg(w)
+	require.NoError(t, w.Close(), "Close returned error")
+
+	debugLogf(t, "%d:%x", buf.Len(), buf.Bytes())
+
+	for i := 0; i < buf.Len(); i++ {
+		w := NewWriter(nil, DefaultCompression)
+		w.w = &errorWriter{N: i}
+
+		buildMsg(w)
+		w.finish()
+		if !assert.EqualError(t, w.err, errErrorWriter.Error(),
+			"error at pos=%d of len=%d", i, buf.Len()) {
+			break
+		}
+	}
+
+	w = NewWriter(nil, DefaultCompression)
+	w.w = &errorWriter{N: 5}
+
+	w.finish()
+	assert.EqualError(t, w.err, errErrorWriter.Error(),
+		"error in middle of header written in Close")
+
+	w = NewWriter(nil, DefaultCompression)
+	w.w = &errorWriter{N: int(^uint16(0)) * 2}
+
+	data := bytes.Repeat([]byte{'a'}, 1<<17) // 128 KiB
+	w.AddUncompressedData(data)
+
+	w.finish()
+	assert.EqualError(t, w.err, errErrorWriter.Error(),
+		"error in middle of AddUncompressedData")
+}
+
 func TestPrecompressedWriterReset(t *testing.T) {
 	w := NewPrecompressedWriter(DefaultCompression)
 
@@ -774,4 +825,21 @@ func TestPrecompressDataEmpty(t *testing.T) {
 
 	assert.Equal(t, closeFooter, bb, "expected only close footer in output")
 	assert.Equal(t, "", decompressFlateBytes(t, bb))
+}
+
+var errErrorWriter = errors.New("once error")
+
+type errorWriter struct {
+	N int
+	n int
+}
+
+func (w *errorWriter) Write(p []byte) (int, error) {
+	w.n += len(p)
+	if w.n >= w.N && w.N >= 0 {
+		w.N = -1
+		return 0, errErrorWriter
+	}
+
+	return len(p), nil
 }
