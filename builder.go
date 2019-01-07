@@ -291,17 +291,6 @@ func (b *builder) AddUncompressedData(data []byte) {
 }
 
 func (b *builder) zeroWrite(p []byte) {
-	/* The following code is equivalent to:
-	 *  hbw := newHuffmanBitWriter(b.buf)
-	 *  hbw.writeStoredHeader(len(p), false)
-	 *
-	 *  if hbw.err == nil {
-	 *          hbw.writeBytes(p)
-	 *  }
-	 *
-	 *  b.err = hbw.err
-	 */
-
 	b.scratch[0] = 0
 	binary.LittleEndian.PutUint16(b.scratch[1:], uint16(len(p)))
 	binary.LittleEndian.PutUint16(b.scratch[3:], ^uint16(len(p)))
