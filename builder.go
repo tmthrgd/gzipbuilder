@@ -208,7 +208,7 @@ func (b *builder) AddPrecompressedData(data *PrecompressedData) {
 
 	if !b.rawDeflate {
 		b.size += uint32(data.size)
-		b.crc = combineCRC32(crc32Mat, b.crc, data.crc, uint64(data.size))
+		b.crc = combineCRC32(crc32Mat, b.crc, data.crc, data.size)
 	}
 
 	_, b.err = b.w.Write(data.bytes)
@@ -457,7 +457,7 @@ type PrecompressedData struct {
 	level int
 
 	bytes []byte
-	size  int64
+	size  uint64
 	crc   uint32
 }
 
@@ -479,7 +479,7 @@ type PrecompressedWriter struct {
 	buf *bytes.Buffer
 	fw  *flate.Writer
 
-	size int64
+	size uint64
 	crc  uint32
 
 	lastFlush bool
@@ -527,7 +527,7 @@ func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 
 	w.lastFlush = false
 
-	w.size += int64(len(p))
+	w.size += uint64(len(p))
 	w.crc = crc32.Update(w.crc, crc32.IEEETable, p)
 
 	n, err := w.fw.Write(p)
