@@ -75,7 +75,7 @@ func validCompressionLevel(level int) error {
 		level, HuffmanOnly, BestCompression)
 }
 
-type sectionType int
+type sectionType int8
 
 const (
 	start sectionType = iota
