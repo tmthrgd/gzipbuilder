@@ -26,30 +26,34 @@ func debugLogf(t *testing.T, fmt string, args ...interface{}) {
 	}
 }
 
+func decompressBytesErrorReport(t *testing.T, b []byte, err *error) {
+	t.Helper()
+
+	if *err == nil || !strings.HasPrefix((*err).Error(), "flate: corrupt input before offset ") {
+		return
+	}
+
+	i, _ := strconv.Atoi(strings.TrimPrefix((*err).Error(), "flate: corrupt input before offset "))
+	last := i + 1
+	if last > len(b) {
+		last = len(b)
+	}
+
+	switch {
+	case len(b) > 1024 && last < 1024:
+		t.Logf("%x %d:%02x %x...", b[:i], i, b[i], b[last:1024])
+	case len(b) > 1024:
+		t.Logf("%x...", b[:1024])
+	default:
+		t.Logf("%x %d:%02x %x", b[:i], i, b[i], b[last:])
+	}
+}
+
 func decompressBytes(t *testing.T, b []byte) string {
 	t.Helper()
 
 	var err error
-	defer func() {
-		if err == nil || !strings.HasPrefix(err.Error(), "flate: corrupt input before offset ") {
-			return
-		}
-
-		i, _ := strconv.Atoi(strings.TrimPrefix(err.Error(), "flate: corrupt input before offset "))
-		last := i + 1
-		if last > len(b) {
-			last = len(b)
-		}
-
-		switch {
-		case len(b) > 1024 && last < 1024:
-			t.Logf("%x %d:%02x %x...", b[:i], i, b[i], b[last:1024])
-		case len(b) > 1024:
-			t.Logf("%x...", b[:1024])
-		default:
-			t.Logf("%x %d:%02x %x", b[:i], i, b[i], b[last:])
-		}
-	}()
+	defer decompressBytesErrorReport(t, b, &err)
 
 	r, err := gzip.NewReader(bytes.NewReader(b))
 	require.NoError(t, err, "gzip decompression failed")
@@ -59,6 +63,23 @@ func decompressBytes(t *testing.T, b []byte) string {
 
 	err = r.Close()
 	require.NoError(t, err, "gzip decompression failed")
+
+	return string(res)
+}
+
+func decompressFlateBytes(t *testing.T, b []byte) string {
+	t.Helper()
+
+	var err error
+	defer decompressBytesErrorReport(t, b, &err)
+
+	r := flate.NewReader(bytes.NewReader(b))
+
+	res, err := ioutil.ReadAll(r)
+	require.NoError(t, err, "flate decompression failed")
+
+	err = r.Close()
+	require.NoError(t, err, "flate decompression failed")
 
 	return string(res)
 }
@@ -569,14 +590,7 @@ func TestBuilderRawDeflate(t *testing.T) {
 
 			debugLogf(t, "%d:%x", len(bb), bb)
 
-			r := flate.NewReader(bytes.NewReader(bb))
-
-			res, err := ioutil.ReadAll(r)
-			require.NoError(t, err, "flate decompression failed")
-
-			err = r.Close()
-			require.NoError(t, err, "flate decompression failed")
-
+			res := decompressFlateBytes(t, bb)
 			if tc.name == "empty" {
 				assert.Equal(t, "", string(res))
 			} else {
@@ -717,4 +731,23 @@ func TestPrecompressedWriterMultipleData(t *testing.T) {
 	debugLogf(t, "%d:%x", len(bb), bb)
 
 	assert.Equal(t, "hello world this is a test", decompressBytes(t, bb))
+}
+
+func TestPrecompressDataEmpty(t *testing.T) {
+	d, err := PrecompressData(nil, DefaultCompression)
+	require.NoError(t, err, "failed to precompress data")
+
+	b := NewBuilder(DefaultCompression)
+	b.RawDeflate()
+
+	b.AddPrecompressedData(d)
+
+	bb, err := b.Bytes()
+	require.NoError(t, err, "Bytes returned error")
+	assert.NoError(t, b.Err(), "Err returned error")
+
+	debugLogf(t, "%d:%x", len(bb), bb)
+
+	assert.Equal(t, closeFooter, bb, "expected only close footer in output")
+	assert.Equal(t, "", decompressFlateBytes(t, bb))
 }
