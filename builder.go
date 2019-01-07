@@ -349,10 +349,10 @@ func (b *builder) CompressedWriter() io.Writer {
 	return compressedWriter{b}
 }
 
-func (b *builder) finish() bool {
+func (b *builder) finish() {
 	switch b.last {
 	case finished:
-		return b.err == nil
+		return
 	case compressed:
 		if b.err == nil {
 			b.err = b.fw.Close()
@@ -377,8 +377,6 @@ func (b *builder) finish() bool {
 		flateWriterPut(b.fw, b.level)
 		b.fw = nil
 	}
-
-	return b.err == nil
 }
 
 // A Builder incrementally builds a compressed GZIP stream. It supports
@@ -394,7 +392,8 @@ func NewBuilder(level int) *Builder {
 // Bytes returns the bytes written by the builder or an error if one has
 // occurred during building.
 func (b *Builder) Bytes() ([]byte, error) {
-	if !b.finish() {
+	b.finish()
+	if b.err != nil {
 		return nil, b.err
 	}
 
@@ -404,7 +403,8 @@ func (b *Builder) Bytes() ([]byte, error) {
 // BytesOrPanic returns the bytes written by the builder or panics if an error
 // has occurred during building.
 func (b *Builder) BytesOrPanic() []byte {
-	if !b.finish() {
+	b.finish()
+	if b.err != nil {
 		panic(b.err)
 	}
 
@@ -431,9 +431,10 @@ func (b *Writer) Close() error {
 	if b.last == finished {
 		return b.err
 	}
+	b.finish()
 
 	buf := b.w.(*bufio.Writer)
-	if b.finish() {
+	if b.err == nil {
 		b.err = buf.Flush()
 	}
 
