@@ -20,7 +20,8 @@ import (
 const packUncompressedData = true
 
 var (
-	closeFooter = []byte{0x01, 0x00, 0x00, 0xff, 0xff} // zero-length type 0 block, w/ final block flag
+	// closeFooter is a zero-length type 0 block, w/ final block flag.
+	closeFooter = []byte{0x01, 0x00, 0x00, 0xff, 0xff}
 
 	crc32Mat = precomputeCRC32(crc32.IEEE)
 
@@ -537,7 +538,8 @@ func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 }
 
 // Data returns a PrecompressedData struct containing the compressed data
-// written to the writer. It will return any error that has occurred during writing.
+// written to the writer. It will return any error that has occurred during
+// writing.
 //
 // It is safe to call Data multiple times.
 func (w *PrecompressedWriter) Data() (*PrecompressedData, error) {
