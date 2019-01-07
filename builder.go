@@ -323,19 +323,6 @@ func (b *builder) packUncompressed(data []byte) []byte {
 	return data[remaining:]
 }
 
-type uncompressedWriter struct{ b *builder }
-
-func (w uncompressedWriter) Write(p []byte) (int, error) {
-	w.b.AddUncompressedData(p)
-	return len(p), w.b.err
-}
-
-// UncompressedWriter returns an io.Writer that will write uncompressed data to
-// the builder.
-func (b *builder) UncompressedWriter() io.Writer {
-	return uncompressedWriter{b}
-}
-
 type compressedWriter struct{ b *builder }
 
 func (w compressedWriter) Write(p []byte) (int, error) {
@@ -347,6 +334,19 @@ func (w compressedWriter) Write(p []byte) (int, error) {
 // builder.
 func (b *builder) CompressedWriter() io.Writer {
 	return compressedWriter{b}
+}
+
+type uncompressedWriter struct{ b *builder }
+
+func (w uncompressedWriter) Write(p []byte) (int, error) {
+	w.b.AddUncompressedData(p)
+	return len(p), w.b.err
+}
+
+// UncompressedWriter returns an io.Writer that will write uncompressed data to
+// the builder.
+func (b *builder) UncompressedWriter() io.Writer {
+	return uncompressedWriter{b}
 }
 
 func (b *builder) finish() {
