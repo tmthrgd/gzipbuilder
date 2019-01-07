@@ -25,6 +25,12 @@ var (
 	crc32Mat = precomputeCRC32(crc32.IEEE)
 
 	flateWriterPools [flate.BestCompression - flate.HuffmanOnly + 1]sync.Pool
+
+	bufioWriterPool = &sync.Pool{
+		New: func() interface{} {
+			return bufio.NewWriterSize(nil, 1024)
+		},
+	}
 )
 
 func flateWriterPool(level int) *sync.Pool {
@@ -416,7 +422,9 @@ type Writer struct{ builder }
 // NewWriter creates a Writer using the given compression level. Data is
 // written to w.
 func NewWriter(w io.Writer, level int) *Writer {
-	return &Writer{newBuilder(bufio.NewWriterSize(w, 1024), level)}
+	bw := bufioWriterPool.Get().(*bufio.Writer)
+	bw.Reset(w)
+	return &Writer{newBuilder(bw, level)}
 }
 
 // Close closes the Writer by flushing any unwritten data to the underlying
@@ -428,9 +436,12 @@ func (b *Writer) Close() error {
 		return b.err
 	}
 
+	buf := b.w.(*bufio.Writer)
 	if b.finish() {
-		b.err = b.w.(*bufio.Writer).Flush()
+		b.err = buf.Flush()
 	}
+
+	bufioWriterPool.Put(buf)
 	b.w = nil
 
 	return b.err
