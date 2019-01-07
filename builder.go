@@ -65,6 +65,15 @@ const (
 	HuffmanOnly        = flate.HuffmanOnly
 )
 
+func validCompressionLevel(level int) error {
+	if level >= HuffmanOnly && level <= BestCompression {
+		return nil
+	}
+
+	return fmt.Errorf("flate: invalid compression level %d: want value in range [%d, %d]",
+		level, HuffmanOnly, BestCompression)
+}
+
 type sectionType int
 
 const (
@@ -102,19 +111,15 @@ type builder struct {
 // If w is a *bytes.Buffer, successive uncompressed writes will be packed to
 // use as little space as possible.
 func newBuilder(w io.Writer, level int) builder {
-	b := builder{
+	return builder{
 		level: level,
 
 		w: w,
 
+		err: validCompressionLevel(level),
+
 		scratch: new([10]byte),
 	}
-	if level < HuffmanOnly || level > BestCompression {
-		b.err = fmt.Errorf("flate: invalid compression level %d: want value in range [%d, %d]",
-			level, HuffmanOnly, BestCompression)
-	}
-
-	return b
 }
 
 func (b *builder) canSetOption() bool {
