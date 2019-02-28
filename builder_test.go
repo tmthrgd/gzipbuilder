@@ -792,7 +792,7 @@ func TestPrecompressedWriterMultipleData(t *testing.T) {
 
 	assert.NotEqual(t, data1.bytes, data3.bytes, "does not differ after Write")
 
-	var syncFlushFooter = []byte{0x00, 0x00, 0x00, 0xff, 0xff}
+	syncFlushFooter := []byte{0x00, 0x00, 0x00, 0xff, 0xff}
 	assert.True(t, bytes.HasSuffix(data3.bytes, syncFlushFooter),
 		"missing Z_SYNC_FLUSH")
 
