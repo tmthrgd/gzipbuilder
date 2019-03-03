@@ -78,11 +78,9 @@ func precomputeCRC32(poly uint32) *crc32Matrix {
 	var even, odd [32]uint32
 
 	// Put operator for one zero bit in odd.
-	var row uint32 = 1
 	odd[0] = poly
 	for n := 1; n < len(odd); n++ {
-		odd[n] = row
-		row <<= 1
+		odd[n] = 1 << uint(n-1)
 	}
 
 	// Put operator for two zero bits in even.
