@@ -66,7 +66,7 @@ func matrixMult(mat *[32]uint32, vec uint32) uint32 {
 
 // Translation of gf2_matrix_square from zlib.
 func matrixSquare(square, mat *[32]uint32) {
-	for n := 0; n < 32; n++ {
+	for n := 0; n < len(mat); n++ {
 		square[n] = matrixMult(mat, mat[n])
 	}
 }
@@ -80,7 +80,7 @@ func precomputeCRC32(poly uint32) *crc32Matrix {
 	// Put operator for one zero bit in odd.
 	var row uint32 = 1
 	odd[0] = poly
-	for n := 1; n < 32; n++ {
+	for n := 1; n < len(odd); n++ {
 		odd[n] = row
 		row <<= 1
 	}
