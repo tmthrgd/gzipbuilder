@@ -314,8 +314,8 @@ func (b *builder) packUncompressed(data []byte) []byte {
 	b.uncompLen += remaining
 
 	hdr := buf.Bytes()[b.uncompHeaderIdx : b.uncompHeaderIdx+5]
-	binary.LittleEndian.PutUint16(hdr[1:], uint16(b.uncompLen))
-	binary.LittleEndian.PutUint16(hdr[3:], ^uint16(b.uncompLen))
+	binary.LittleEndian.PutUint16(hdr[1:], b.uncompLen)
+	binary.LittleEndian.PutUint16(hdr[3:], ^b.uncompLen)
 
 	buf.Write(data[:remaining])
 	return data[remaining:]
