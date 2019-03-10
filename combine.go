@@ -110,6 +110,10 @@ func precomputeCRC32(poly uint32) *crc32Matrix {
 //	crc32.Checksum(AB, tab) == combineCRC32(precomputeCRC32(poly),
 //		crc32.Checksum(A, tab), crc32.Checksum(B, tab), len(B))
 func combineCRC32(mat *crc32Matrix, crc1, crc2 uint32, len2 uint64) uint32 {
+	if crc1 == 0 {
+		return crc2
+	}
+
 	// Apply len2 zeros to crc1.
 	for n := 0; len2 != 0; {
 		nz := bits.TrailingZeros64(len2)
