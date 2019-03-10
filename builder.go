@@ -222,14 +222,12 @@ func (b *builder) AddCompressedData(data []byte) {
 		return
 	}
 
-	if b.last != compressed && b.fw != nil {
+	if b.fw == nil {
+		b.fw = flateWriterGet(b.w, b.level)
+	} else if b.last != compressed {
 		b.fw.Reset(b.w)
 	}
 	b.last = compressed
-
-	if b.fw == nil {
-		b.fw = flateWriterGet(b.w, b.level)
-	}
 
 	if !b.rawDeflate {
 		b.size += uint32(len(data))
