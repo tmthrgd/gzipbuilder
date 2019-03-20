@@ -529,7 +529,8 @@ func (w *PrecompressedWriter) Write(p []byte) (int, error) {
 // written to the writer. It will return any error that has occurred during
 // writing.
 //
-// It is safe to call Data multiple times.
+// It is safe to call Data multiple times. Write may be called again after
+// Data to continue writing more data.
 func (w *PrecompressedWriter) Data() (*PrecompressedData, error) {
 	if w.err == nil && !w.lastFlush {
 		w.err = w.fw.Flush()
