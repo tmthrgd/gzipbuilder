@@ -282,6 +282,20 @@ func TestBuilderWriterEqual(t *testing.T) {
 	}
 }
 
+func TestBuilderWriterEarlyError(t *testing.T) {
+	b := NewBuilder(-100) // invalid level
+	expectedErr := b.Err()
+
+	for _, w := range []io.Writer{
+		b.CompressedWriter(),
+		b.UncompressedWriter(),
+	} {
+		n, err := io.WriteString(w, "abc")
+		assert.EqualError(t, err, expectedErr.Error())
+		assert.Zero(t, n, "Write should have returned error early")
+	}
+}
+
 func testBuilderError(t *testing.T, msg string, fn func(*Builder)) {
 	t.Helper()
 
