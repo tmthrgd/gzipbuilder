@@ -1,4 +1,4 @@
-module tmthrgd.dev/go/gzipbuilder
+module go.tmthrgd.dev/gzipbuilder
 
 go 1.12
 
